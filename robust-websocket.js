@@ -113,7 +113,7 @@
       if (fastClose) {
         // Do not wait for the socket to finish closing (can take a long time). Immediately call
         // all close listeners with a fake event.
-        var fakeCloseEvent = { type: 'close', code, reason, wasClean: true }
+        var fakeCloseEvent = { type: 'close', code: code, reason: reason, wasClean: true }
         self.dispatchEvent(fakeCloseEvent)
         // Remove close listener as we do not want to receive the actual close event (prevent notifying the listeners twice)
         realWs.removeEventListener('close', self['handle_close'])
