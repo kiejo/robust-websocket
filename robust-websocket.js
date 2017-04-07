@@ -102,6 +102,26 @@
       }
     }
 
+    self.refresh = function(fastClose) {
+      clearPendingReconnectIfNeeded()
+      clearTimeout(connectTimeout)
+
+      var code = 1000
+      var reason = 'refresh'
+      realWs.close(code, reason)
+
+      if (fastClose) {
+        // Do not wait for the socket to finish closing (can take a long time). Immediately call
+        // all close listeners with a fake event.
+        var fakeCloseEvent = { type: 'close', code, reason, wasClean: true }
+        self.dispatchEvent(fakeCloseEvent)
+        // Remove close listener as we do not want to receive the actual close event (prevent notifying the listeners twice)
+        realWs.removeEventListener('close', self['handle_close'])
+      }
+
+      self.open()
+    }
+
     function reconnect(event) {
       if (event.code === 1000 || explicitlyClosed) {
         attempts = 0
@@ -165,14 +185,17 @@
       }, opts.timeout)
 
       ;['open', 'close', 'message', 'error'].forEach(function(stdEvent) {
-        realWs.addEventListener(stdEvent, function(event) {
+        // Keep a reference to the handler function so that we can remove handlers
+        // later on (e.g. refresh method)
+        self['handle_' + stdEvent] = function(event) {
           self.dispatchEvent(event)
 
           var cb = self['on' + stdEvent]
           if (typeof cb === 'function') {
             return cb.apply(self, arguments)
           }
-        })
+        }
+        realWs.addEventListener(stdEvent, self['handle_' + stdEvent])
       })
 
       attachConnectivityEvents()
