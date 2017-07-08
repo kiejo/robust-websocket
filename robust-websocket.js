@@ -17,7 +17,6 @@
         self = this,
         attempts = 0,
         reconnects = -1,
-        reconnectWhenOnlineAgain = false,
         explicitlyClosed = false,
         pendingReconnect,
         opts = Object.assign({},
@@ -46,34 +45,6 @@
       }
     }
 
-    var ononline = function(event) {
-      if (reconnectWhenOnlineAgain) {
-        clearPendingReconnectIfNeeded()
-        reconnect(event)
-      }
-    },
-    onoffline = function() {
-      reconnectWhenOnlineAgain = true
-      realWs.close(1000)
-    },
-    connectivityEventsAttached = false
-
-    function detachConnectivityEvents() {
-      if (connectivityEventsAttached) {
-        global.removeEventListener('online', ononline)
-        global.removeEventListener('offline', onoffline)
-        connectivityEventsAttached = false
-      }
-    }
-
-    function attachConnectivityEvents() {
-      if (!connectivityEventsAttached) {
-        global.addEventListener('online', ononline)
-        global.addEventListener('offline', onoffline)
-        connectivityEventsAttached = true
-      }
-    }
-
     self.send = function() {
       return realWs.send.apply(realWs, arguments)
     }
@@ -85,9 +56,7 @@
       }
 
       clearPendingReconnectIfNeeded()
-      reconnectWhenOnlineAgain = false
       explicitlyClosed = true
-      detachConnectivityEvents()
 
       return realWs.close(code, reason)
     }
@@ -95,7 +64,6 @@
     self.open = function() {
       if (realWs.readyState !== WebSocket.OPEN && realWs.readyState !== WebSocket.CONNECTING) {
         clearPendingReconnectIfNeeded()
-        reconnectWhenOnlineAgain = false
         explicitlyClosed = false
 
         newWebSocket()
@@ -127,10 +95,6 @@
         attempts = 0
         return
       }
-      if (navigator.onLine === false) {
-        reconnectWhenOnlineAgain = true
-        return
-      }
 
       var delay = opts.shouldReconnect(event, self)
       if (typeof delay === 'number') {
@@ -148,7 +112,6 @@
           event.reconnects = ++reconnects
           event.attempts = attempts
           attempts = 0
-          reconnectWhenOnlineAgain = false
         }],
         close: [reconnect]
       }
@@ -177,7 +140,6 @@
 
       connectTimeout = setTimeout(function() {
         connectTimeout = null
-        detachConnectivityEvents()
         self.dispatchEvent(Object.assign(new CustomEvent('timeout'), {
           attempts: attempts,
           reconnects: reconnects
@@ -197,8 +159,6 @@
         }
         realWs.addEventListener(stdEvent, self['handle_' + stdEvent])
       })
-
-      attachConnectivityEvents()
     }
 
     if (opts.automaticOpen) {
